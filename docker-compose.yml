@@ -1,0 +1,204 @@
+services:
+  mine:
+    build:
+      context: ./services/mine
+      args:
+        MINE_VERSION: hyperf/hyperf:${MINE_VERSION}
+    image: docker-mine-local
+    container_name: ${APP_NAME}-${APP_ENV}-hyperf
+    #platform: linux/arm64
+    ports:
+      - "${MINE_PORT_9000}:9000"
+      - "${MINE_PORT_9501}:9501"
+      - "${MINE_PORT_9502}:9502"
+    user: root
+    privileged: true
+    volumes:
+      - ${SOURCE_DIR}:/opt/www:rw
+    environment:
+      - APP_ENV=${APP_ENV}
+      - SCAN_CACHEABLE=false
+    cap_add:
+      - SYS_PTRACE
+    restart: always
+    tty: true
+    # networks:
+    #   - default
+
+  php:
+    build:
+      context: ./services/php
+      args:
+        PHP_VERSION: php:${PHP_MAJOR_VERSION}.${PHP_MINOR_VERSION}.${PHP_PATCH_VERSION}-fpm-alpine${ALPINE_MAJOR_VERSION}.${ALPINE_MINOR_VERSION}
+        PHP_EXTENSIONS: ${PHP_EXTENSIONS}
+        CONTAINER_PACKAGE_URL: ${CONTAINER_PACKAGE_URL}
+        COMPOSER_URL: ${COMPOSER_URL}
+    image: docker-php${PHP_MAJOR_VERSION}${PHP_MINOR_VERSION}-local
+    container_name: ${APP_NAME}-${APP_ENV}-php${PHP_MAJOR_VERSION}${PHP_MINOR_VERSION}
+    ports:
+      - "${PHP_PORT_9000}:9000"
+      - "${PHP_PORT_9501}:9501"
+      - "${PHP_PORT_9502}:9502"
+    volumes:
+      - ${SOURCE_DIR}:/www/:rw
+      - ${PHP_SSL_DIR}:/data/cert:ro
+      - ${PHP_INI_FILE}:/usr/local/etc/php/php.ini:ro
+      - ${PHP_FPM_CONF_FILE}:/usr/local/etc/php-fpm.conf:ro
+      - ${PHP_LOG_DIR}:/var/log/php
+      - ${PHP_SSH_DIR}:/home/www/.ssh:ro
+    restart: always
+    command: php-fpm
+    cap_add:
+      - SYS_PTRACE
+    # networks:
+    #   - default
+
+  nginx:
+     build:
+       context: ./services/nginx
+       args:
+         NGINX_VERSION: nginx:${NGINX_VERSION}
+     image: docker-nginx-local
+     container_name: ${APP_NAME}-${APP_ENV}-nginx
+     volumes:
+       - ${SOURCE_DIR}:/www/:rw
+       - ${NGINX_SSL_CERTIFICATE_DIR}:/ssl:rw
+       - ${NGINX_CONFD_DIR}:/etc/nginx/conf.d/:rw
+       - ${NGINX_CONF_FILE}:/etc/nginx/nginx.conf:ro
+       - ${NGINX_FASTCGI_PHP_CONF}:/etc/nginx/fastcgi-php.conf:ro
+       - ${NGINX_FASTCGI_PARAMS}:/etc/nginx/fastcgi_params.conf:ro
+       - ${NGINX_LOG_DIR}:/var/log/nginx/:rw
+     ports:
+       - "${NGINX_HTTP_HOST_PORT}:80"
+       - "${NGINX_HTTPS_HOST_PORT}:443"
+     restart: always
+     command: nginx -g 'daemon off;'
+    #  networks:
+    #    - default
+
+  mysql:
+     build:
+       context: ./services/mysql
+       args:
+         MYSQL_VERSION: mysql:${MYSQL_MAJOR_VERSION}.${MYSQL_MINOR_VERSION}.${MYSQL_PATCH_VERSION}
+     image: docker-mysql${MYSQL_MAJOR_VERSION}${MYSQL_MINOR_VERSION}-local
+     container_name: ${APP_NAME}-${APP_ENV}-mysql
+     ports:
+       - "${MYSQL_HOST_PORT}:3306"
+     volumes:
+       - ${MYSQL_CONF_FILE}:/etc/mysql/conf.d/mysql.cnf:ro
+       - ${DATA_DIR}/mysql8:/var/lib/mysql/:rw
+       - ${MYSQL_LOG_DIR}:/var/log/mysql/:rw
+     environment:
+       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD}"
+       MYSQL_ROOT_HOST: "${MYSQL_ROOT_HOST}"
+       TZ: "$TZ"
+     restart: always
+     command: "--character-set-server=utf8mb4"
+    #  networks:
+    #    - default
+
+  redis-db:
+     build:
+       context: ./services/redis
+       args:
+         REDIS_VERSION: redis:${REDIS_VERSION}
+     image: docker-redis-db-local
+     container_name: ${APP_NAME}-${APP_ENV}-redis-db
+     ports:
+       - "${REDIS_HOST_PORT}:6379"
+     restart: always
+    #  networks:
+    #    - default
+
+  rabbitmq:
+     build:
+       context: ./services/rabbitmq
+       args:
+         RABBITMQ_VERSION: rabbitmq:${RABBITMQ_VERSION}
+     image: docker-rabbitmq-local
+     container_name: ${APP_NAME}-${APP_ENV}-rabbitmq
+     ports:
+       - "${RABBITMQ_PORT_WEB}:15672"
+       - "${RABBITMQ_PORT_SERVICE}:5672"
+     environment:
+       - RABBITMQ_DEFAULT_USER="${RABBITMQ_DEFAULT_USER}"
+       - RABBITMQ_DEFAULT_PASS="${RABBITMQ_DEFAULT_PASS}"
+     restart: always
+    #  networks:
+    #    - default
+
+  nodejs:
+    build:
+      context: ./services/nodejs
+      args:
+        NODEJS_VERSION: node:${NODEJS_MAJOR_VERSION}.${NODEJS_MINOR_VERSION}.${NODEJS_PATCH_VERSION}-alpine${ALPINE_MAJOR_VERSION}.${ALPINE_MINOR_VERSION}
+    image: docker-nodejs-local
+    container_name: ${APP_NAME}-${APP_ENV}-nodejs
+    environment:
+      - NODE_ENV=development
+    volumes: 
+      - ${SOURCE_DIR}:/www/:rw
+    ports:
+      - "${NODE_APP_PORT}:2888"
+    stdin_open: true
+    restart: always
+    tty: true
+
+
+# elasticsearch:
+#   build:
+#     context: ./services/elasticsearch
+#     args:
+#       ELASTICSEARCH_VERSION: ${ELASTICSEARCH_VERSION}
+#       # ELASTICSEARCH_PLUGINS: ${ELASTICSEARCH_PLUGINS}
+#   image: docker-elasticasearch-local
+#   container: ${APP_NAME}-${APP_ENV}-elasticsearch
+#   environment:
+#     - TZ=$TZ
+#     - discovery.type=single-node
+#     - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+#   volumes:
+#     - ${DATA_DIR}/esdata:/usr/share/elasticsearch/data
+#     - ${ELASTICSEARCH_CONF_FILE}:/usr/share/elasticsearch/config/elasticsearch.yml
+#   hostname: elasticsearch
+#   restart: always
+#   ports:
+#     - "${ELASTICSEARCH_HOST_PORT_C}:9200"
+#     - "${ELASTICSEARCH_HOST_PORT_S}:9300"
+
+# logstash:
+#   image: docker-logstash:${LOGSTASH_VERSION}-local
+#   container: ${APP_NAME}-${APP_ENV}-logstash
+#   hostname: logstash
+#   restart: always
+#   depends_on:
+#     - elasticsearch
+#   environment:
+#     TZ: "$TZ"
+#   ports:
+#     - "${LOGSTASH_HOST_PORT_C}:9600"
+#     - "${LOGSTASH_HOST_PORT_S}:5044"
+
+# kibana:
+#   image: docker-kibana:${KIBANA_VERSION}-local
+#   container: ${APP_NAME}-${APP_ENV}-kibana
+#   environment:
+#     TZ: "$TZ"
+#     elasticsearch.hosts: host.docker.internal:9200
+#     I18N_LOCALE: "${KIBANA_I18N_LOCALE}"
+#   hostname: kibana
+#   depends_on:
+#     - elasticsearch
+#   restart: always
+#   ports:
+#     - "${KIBANA_HOST}:5601"
+
+# networks:
+#   default:
+#     driver: bridge
+#     ipam:
+#       driver: default
+#       # 解除下面的注释可以设置网段，用于nginx等容器固定容器IP
+#       #config:
+#       #  - subnet: 10.0.0.0/24
